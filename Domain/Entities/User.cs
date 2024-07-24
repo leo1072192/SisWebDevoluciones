@@ -9,6 +9,8 @@ namespace Domain.Entities
     public class User
     {
         public int Id { get; set; }
+
+
         public string CardCode { get; set; }
         public string CardName { get; set; }
         public string FederalTaxID { get; set; }

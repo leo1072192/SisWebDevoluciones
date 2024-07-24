@@ -3,11 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Application.DTOs;
 using Application.Interfaces;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Cors;
 
 namespace Presentation.Controllers
 {
     [ApiController]
+   
     [Route("api/[controller]")]
+    [EnableCors("AllowSpecificOrigin")]
     public class AuthController : ControllerBase
     {
         private readonly ISapB1Service _sapB1Service;
@@ -22,6 +25,7 @@ namespace Presentation.Controllers
         }
 
         [HttpPost("login")]
+        [EnableCors("AllowSpecificOrigin")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             // Verificar y autenticar al usuario utilizando SAP B1 o base de datos local
@@ -29,7 +33,7 @@ namespace Presentation.Controllers
             if (customerInfo != null)
             {
                 // Generar token JWT
-                var token = _jwtService.GenerateToken(customerInfo.CardCode, request.Password);
+                var token = _jwtService.GenerateToken(customerInfo.CardCode, customerInfo.Role);
 
                 // Devolver el customerInfo y el token como parte de la respuesta
                 return Ok(new { CustomerInfo = customerInfo, Token = token });

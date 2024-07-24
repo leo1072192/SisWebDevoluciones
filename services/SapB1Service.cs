@@ -48,7 +48,9 @@ namespace Infrastructure.Services
 
                         var responseContent2 = await response2.Content.ReadAsStringAsync();
                         var sapUserDto = JsonSerializer.Deserialize<SapUserDto>(responseContent2);
-
+                        // Actualizar el DTO con el Id y Role de la base de datos
+                        sapUserDto.Id = userInDb.Id.ToString(); // Convertir a string si es necesario
+                        sapUserDto.Role = userInDb.Role;
                         return sapUserDto;
                     }
                     else

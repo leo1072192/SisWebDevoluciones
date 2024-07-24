@@ -7,6 +7,8 @@ namespace Application.DTOs
 {
     public class SapUserDto
     {
+        public string Id { get; set; }
+        public string Role { get; set; }
         public string CardCode { get; set; }
         public string CardName { get; set; }
         public string CardType { get; set; }

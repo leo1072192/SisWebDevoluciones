@@ -30,23 +30,28 @@ namespace Infrastructure.Services
                 var endpoint = "ReturnRequest";
 
                 var accessToken = await SapAuthenticationHelper.GetAccessTokenAsync(_httpClient);
-
                 _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
                 var jsonContent = JsonSerializer.Serialize(devolucion);
                 var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                 var response = await _httpClient.PostAsync(endpoint, httpContent);
-                response.EnsureSuccessStatusCode();
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error al insertar devolución: {response.StatusCode} - {responseContent}");
+                    return false;
+                }
 
                 return true;
             }
             catch (Exception ex)
             {
-                // Loguea el error
                 Console.WriteLine($"Error al insertar devolución: {ex.Message}");
                 return false;
             }
         }
+
     }
 }

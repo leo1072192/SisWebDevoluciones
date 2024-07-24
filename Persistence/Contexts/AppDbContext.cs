@@ -16,6 +16,12 @@ namespace Infrastructure.Persistence.Contexts
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<ReturnRequestEntity>()
+    .Property(r => r.DocDate)
+    .HasConversion(
+        v => v.ToUniversalTime(),
+        v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+    );
             modelBuilder.Entity<Devolucion>()
                 .Property(e => e.DocumentLines)
                 .HasConversion(

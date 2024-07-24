@@ -19,7 +19,7 @@ namespace Presentation.Controllers
         {
             _devolucionesApiService = devolucionesApiService;
         }
-
+        [Authorize(Roles = "Administrador")]
         [HttpPost]
         public async Task<IActionResult> InsertarDevolucion(DevolucionDto devolucion)
         {

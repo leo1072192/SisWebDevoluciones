@@ -23,5 +23,7 @@ namespace Domain.Entities
         public string ItemCode { get; set; }
         public int Quantity { get; set; }
         public string WarehouseCode { get; set; }
+
+        public int devolucionQuantity { get; set; }
     }
 }
