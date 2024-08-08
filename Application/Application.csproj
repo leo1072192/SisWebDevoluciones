@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\" />
+    <Folder Include="Filters\Features\" />
     <Folder Include="Filters\" />
     <Folder Include="Mappings\" />
     <Folder Include="Wrappers\" />

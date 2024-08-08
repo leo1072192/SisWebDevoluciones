@@ -51,6 +51,7 @@ namespace Infrastructure.Services
                         // Actualizar el DTO con el Id y Role de la base de datos
                         sapUserDto.Id = userInDb.Id.ToString(); // Convertir a string si es necesario
                         sapUserDto.Role = userInDb.Role;
+                        sapUserDto.EmailAddress = userInDb.Email;
                         return sapUserDto;
                     }
                     else
@@ -78,9 +79,10 @@ namespace Infrastructure.Services
                     CardName = SapUserDto.CardName,
                     FederalTaxID = SapUserDto.FederalTaxID,
                     Password = BCrypt.Net.BCrypt.HashPassword(password), //
-                    Role = "User" // Definir el rol adecuado según tu lógica
+                    Role = "Usuario" ,// Definir el rol adecuado según tu lógica
+                    Email=SapUserDto.EmailAddress,
                 };
-
+                SapUserDto.Role=newUser.Role;
                 await _userRepository.AddUserAsync(newUser);
 
                 return SapUserDto; // Usuario autenticado y registrado correctamente

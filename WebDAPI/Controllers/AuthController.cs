@@ -32,6 +32,7 @@ namespace Presentation.Controllers
             var customerInfo = await _sapB1Service.VerifyAndAuthenticateUserAsync(request.CardCode, request.Password);
             if (customerInfo != null)
             {
+                Console.WriteLine(customerInfo.Role);
                 // Generar token JWT
                 var token = _jwtService.GenerateToken(customerInfo.CardCode, customerInfo.Role);
 

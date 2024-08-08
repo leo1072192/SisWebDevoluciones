@@ -35,5 +35,45 @@ namespace Presentation.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [HttpGet("all")]
+        public async Task<IActionResult> GetOrdersALll()
+        {
+            try
+            {
+                var orders = await _ordersApiService.GetOrdersByCardCodeAsyncAll();
+                return Ok(orders);
+            }
+            catch (Exception ex)
+            {
+                // Loguea el error
+                Console.WriteLine(ex.Message);
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("update-quantity")]
+        public async Task<IActionResult> UpdateOrderQuantity([FromBody] UpdateOrderQuantityDto updateOrderQuantityDto)
+        {
+            try
+            {
+                var result = await _ordersApiService.UpdateOrderQuantityAsync(updateOrderQuantityDto.OrderId, updateOrderQuantityDto.LineId, updateOrderQuantityDto.NewQuantity);
+                if (result)
+                {
+                    return Ok(new { message = "Order quantity updated successfully." });
+                }
+                else
+                {
+                    return NotFound(new { message = "Order or document line not found." });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+
     }
 }

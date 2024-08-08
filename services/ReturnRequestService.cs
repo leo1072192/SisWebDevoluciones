@@ -5,6 +5,7 @@ using Application.DTOs;
 using Application.Interfaces;
 using Domain.Entities;
 using Infrastructure.Persistence.Contexts;
+using Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 
@@ -12,27 +13,35 @@ namespace Infrastructure.Services
 {
     public class ReturnRequestService : IReturnRequestService
     {
+        private readonly IOrderRepository _orderRepository;
         private readonly AppDbContext _context;
         private readonly IDevolucionesApiService _devolucionesApiService;
-
-        public ReturnRequestService(AppDbContext context, IDevolucionesApiService devolucionesApiService)
+        private readonly EmailService _emailService;
+        public ReturnRequestService(EmailService emailService,AppDbContext context, IDevolucionesApiService devolucionesApiService, IOrderRepository orderRepository)
         {
+            _orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _devolucionesApiService = devolucionesApiService ?? throw new ArgumentNullException(nameof(devolucionesApiService));
+            _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
         }
 
         public async Task<bool> InsertarReturnRequestAsync(ReturnRequestDto returnRequest)
         {
+            using var transaction = await _context.Database.BeginTransactionAsync(); // Iniciar una transacción
             try
             {
+                // Convertir DocumentLines de DTO a Entity
                 var documentLines = returnRequest.DocumentLines.Select(dl => new DocumentLineEntity
                 {
+                    Id=dl.Id,
+                    OrderId=dl.OrderId,
                     ItemCode = dl.ItemCode,
                     Quantity = dl.Quantity,
                     WarehouseCode = dl.WarehouseCode,
-                    devolucionQuantity=dl.devolucionQuantity,
+                    devolucionQuantity = dl.devolucionQuantity,
                 }).ToList();
 
+                // Crear la entidad ReturnRequest
                 var newReturnRequest = new ReturnRequestEntity
                 {
                     CardCode = returnRequest.CardCode,
@@ -45,25 +54,52 @@ namespace Infrastructure.Services
                     UpdatedBy = returnRequest.CardCode, // Establece el actualizador por defecto
                     CreatedAt = DateTime.UtcNow, // Establece la fecha de creación actual
                     UpdatedAt = DateTime.UtcNow  // Establece la fecha de actualización actual
-                    //FechaInsercion = DateTime.SpecifyKind(returnRequest.FechaInsercion, DateTimeKind.Utc),
-                    //CreatedBy = returnRequest.CreatedBy,
-                    //UpdatedBy = returnRequest.UpdatedBy,
-                    //CreatedAt = DateTime.SpecifyKind(returnRequest.CreatedAt, DateTimeKind.Utc),
-                    //UpdatedAt = DateTime.SpecifyKind(returnRequest.UpdatedAt, DateTimeKind.Utc),
                 };
 
+                // Insertar el nuevo ReturnRequest en la base de datos
                 _context.ReturnRequests.Add(newReturnRequest);
-                var result = await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
+                var returnRequestId = newReturnRequest.Id;
+                // Actualizar las líneas de documento de la orden correspondiente
+                foreach (var dl in returnRequest.DocumentLines)
+                {
+                    var order = await _context.Orders
+                        .Include(o => o.DocumentLines)
+                        .FirstOrDefaultAsync(o => o.Id == dl.OrderId);
 
-                return result > 0;
+                    if (order != null)
+                    {
+                        var documentLine = order.DocumentLines.FirstOrDefault(l => l.Id == dl.Id);
+                        if (documentLine != null)
+                        {
+                            documentLine.Quantity -= dl.devolucionQuantity; // Reducir la cantidad de la línea de documento
+                            await _orderRepository.UpdateOrderAsync(order); // Actualizar la orden
+                        }
+                    }
+                }
+
+                await transaction.CommitAsync(); // Confirmar la transacción
+                                                 // Enviar correo electrónico
+                var user = await _context.Users.SingleOrDefaultAsync(u => u.CardCode == returnRequest.CardCode);
+                Console.WriteLine(user.Email);
+                if (user != null)
+                {
+                    var subject = "Solicitud Devolucion";
+                    var body = $"Su solicitud de devolucion con numero de referencia #: {returnRequestId} ha sido recibido.";
+                    await _emailService.SendEmailAsync(user.Email, subject, body);
+                }
+
+                return true;
             }
             catch (DbUpdateException dbEx)
             {
+                await transaction.RollbackAsync(); // Revertir la transacción en caso de error
                 Console.WriteLine($"Error al insertar ReturnRequest (DB): {dbEx.InnerException?.Message ?? dbEx.Message}");
                 throw;
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync(); // Revertir la transacción en caso de error
                 Console.WriteLine($"Error al insertar ReturnRequest: {ex}");
                 throw;
             }
@@ -83,7 +119,8 @@ namespace Infrastructure.Services
                 existingRequest.DocDate = returnRequest.DocDate.ToUniversalTime();
                 existingRequest.DocDueDate = returnRequest.DocDueDate.ToUniversalTime();
                 existingRequest.DocumentLines = returnRequest.DocumentLines.Select(dl => new DocumentLineEntity
-                {
+                {   Id=dl.Id,
+                    OrderId=dl.OrderId,
                     ItemCode = dl.ItemCode,
                     Quantity = dl.Quantity,
                     WarehouseCode = dl.WarehouseCode,
@@ -99,10 +136,11 @@ namespace Infrastructure.Services
                 _context.ReturnRequests.Update(existingRequest);
                 var result = await _context.SaveChangesAsync();
 
-                if (existingRequest.Estado == "Aprobado")
+                if (existingRequest.Estado == "APROBADO")
                 {
                     var devolucionDto = new DevolucionDto
                     {
+
                         CardCode = existingRequest.CardCode,
                         DocDate = existingRequest.DocDate,
                         DocDueDate = existingRequest.DocDueDate,
@@ -114,16 +152,57 @@ namespace Infrastructure.Services
                             devolucionQuantity = dl.devolucionQuantity,
                         }).ToList()
                     };
-                    Console.Write("AAAA");
-                    Console.Write(devolucionDto);
+                  
                     var apiResult = await _devolucionesApiService.InsertarDevolucionAsync(devolucionDto);
                     if (!apiResult)
                     {
                         throw new Exception("Error al insertar devolución en SAP.");
                     }
-                    existingRequest.Estado = "Procesado";
-                    _context.ReturnRequests.Update(existingRequest);
-                    await _context.SaveChangesAsync();
+                    else
+                    {
+                        existingRequest.Estado = "Aprobado";
+                        _context.ReturnRequests.Update(existingRequest);
+                        await _context.SaveChangesAsync();
+                        // Enviar correo electrónico
+                        var user = await _context.Users.SingleOrDefaultAsync(u => u.CardCode == returnRequest.CardCode);
+                        Console.WriteLine(user.Email);
+                        var subject = "Solicitud Devolucion";
+                        var body = $"Su solicitud de devolucion con numero de referencia #: {id} ha sido APROBADA.";
+                        await _emailService.SendEmailAsync(user.Email, subject, body);
+                    }
+                }
+
+                if (existingRequest.Estado == "RECHAZADO")
+                {
+                   
+                    // Actualizar las líneas de documento de la orden correspondiente
+                    foreach (var dl in returnRequest.DocumentLines)
+                    {
+                        var order = await _context.Orders
+                            .Include(o => o.DocumentLines)
+                            .FirstOrDefaultAsync(o => o.Id == dl.OrderId);
+
+                        if (order != null)
+                        {
+                            var documentLine = order.DocumentLines.FirstOrDefault(l => l.Id == dl.Id);
+                            if (documentLine != null)
+                            {
+                                documentLine.Quantity += dl.devolucionQuantity; // Reducir la cantidad de la línea de documento
+                                await _orderRepository.UpdateOrderAsync(order); // Actualizar la orden
+                            }
+                        }
+                    }
+
+                    existingRequest.Estado = "Rechazado";
+                        _context.ReturnRequests.Update(existingRequest);
+                        await _context.SaveChangesAsync();
+                        // Enviar correo electrónico
+                        var user = await _context.Users.SingleOrDefaultAsync(u => u.CardCode == returnRequest.CardCode);
+                        Console.WriteLine(user.Email);
+                        var subject = "Solicitud Devolucion";
+                        var body = $"Su solicitud de devolucion con numero de referencia #: {id} ha sido Rechazado.";
+                        await _emailService.SendEmailAsync(user.Email, subject, body);
+                    
                 }
 
                 return result > 0;
@@ -146,13 +225,17 @@ namespace Infrastructure.Services
 
             return returnRequests.Select(rr => new ReturnRequestEntity
             {
+                Id=rr.Id,
                 CardCode = rr.CardCode,
                 DocDate = rr.DocDate,
                 DocDueDate = rr.DocDueDate,
                 DocumentLines = rr.DocumentLines.Select(dl => new DocumentLineEntity
                 {
+                    Id=dl.Id,
+                    OrderId=dl.OrderId,
                     ItemCode = dl.ItemCode,
                     Quantity = dl.Quantity,
+                    devolucionQuantity = dl.devolucionQuantity,
                     WarehouseCode = dl.WarehouseCode
                 }).ToList(), // Mapear a DocumentLine2Dto// Convertir de JSON a DTOs
                 Estado = rr.Estado,
@@ -172,14 +255,19 @@ namespace Infrastructure.Services
 
             return returnRequests.Select(rr => new ReturnRequestEntity
             {
+                Id=rr.Id,
                 CardCode = rr.CardCode,
                 DocDate = rr.DocDate,
                 DocDueDate = rr.DocDueDate,
                 DocumentLines = rr.DocumentLines.Select(dl => new DocumentLineEntity
                 {
+                    Id = dl.Id,
+                    OrderId = dl.OrderId,
                     ItemCode = dl.ItemCode,
                     Quantity = dl.Quantity,
-                    WarehouseCode = dl.WarehouseCode
+                    WarehouseCode = dl.WarehouseCode,
+                    devolucionQuantity = dl.devolucionQuantity,
+
                 }).ToList(), // Mapear a DocumentLine2Dto
                 Estado = rr.Estado,
                 FechaInsercion = rr.FechaInsercion,

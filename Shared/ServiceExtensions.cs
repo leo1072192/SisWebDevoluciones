@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Net.Http.Headers;
+using Infrastructure.Repositories;
 
 namespace Infrastructure.Shared
 {
@@ -64,7 +65,10 @@ namespace Infrastructure.Shared
             // Registro del JwtService
             services.AddScoped<IJwtService, JwtService>();
             services.AddScoped<IReturnRequestService, ReturnRequestService>();
-
+            services.AddScoped<IOrderStorageService, OrderStorageService>();
+            services.AddScoped<IOrderRepository, OrderRepository>();
+            // Registro del EmailService
+            services.AddScoped<EmailService>();
             // Registro de otros servicios de infraestructura...
         }
     }

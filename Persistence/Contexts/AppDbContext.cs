@@ -1,5 +1,7 @@
-﻿using Domain.Entities;
+﻿using Application.DTOs;
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Newtonsoft.Json;
 using NpgsqlTypes;
 using System.Collections.Generic;
@@ -13,7 +15,7 @@ namespace Infrastructure.Persistence.Contexts
         public DbSet<User> Users { get; set; }
         public DbSet<Devolucion> Devoluciones { get; set; }
         public DbSet<ReturnRequestEntity> ReturnRequests { get; set; }
-
+        public DbSet<Order> Orders { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<ReturnRequestEntity>()
@@ -37,6 +39,33 @@ namespace Infrastructure.Persistence.Contexts
                 .HasColumnType("jsonb");
 
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Order>()
+                .HasMany(o => o.DocumentLines)
+                .WithOne(dl => dl.Order)
+                .HasForeignKey(dl => dl.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            base.OnModelCreating(modelBuilder);
+
+            var dateTimeConverter = new ValueConverter<DateTime, DateTime>(
+           v => v.ToUniversalTime(),
+           v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime))
+                    {
+                        property.SetValueConverter(dateTimeConverter);
+                    }
+                }
+            }
+
+            base.OnModelCreating(modelBuilder);
         }
+
+
     }
 }

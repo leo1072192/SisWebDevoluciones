@@ -20,6 +20,8 @@ namespace Domain.Entities
 
     public class DocumentLineEntity
     {
+        public int OrderId { get; set; }  // Foreign key
+        public int Id { get; set; }  // Foreign key
         public string ItemCode { get; set; }
         public int Quantity { get; set; }
         public string WarehouseCode { get; set; }

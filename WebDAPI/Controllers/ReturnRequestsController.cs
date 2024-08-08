@@ -85,7 +85,7 @@ namespace Presentation.Controllers
             }
         }
 
-        [Authorize]
+        [Authorize(Roles = "Usuario")]
         [HttpGet("byCardCode/{cardCode}")]
         [EnableCors("AllowSpecificOrigin")]
         public async Task<IActionResult> GetReturnRequestsByCardCode(string cardCode)

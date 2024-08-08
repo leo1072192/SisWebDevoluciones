@@ -19,7 +19,8 @@ namespace Application.DTOs
 
         public class DocumentLineDto
         {
-            public string ItemCode { get; set; }
+        public int Id { get; set; }
+        public string ItemCode { get; set; }
             public string ItemDescription { get; set; }
             public double Quantity { get; set; }
             public DateTime ShipDate { get; set; }
@@ -30,6 +31,8 @@ namespace Application.DTOs
             public double DiscountPercent { get; set; }
             public string WarehouseCode { get; set; }
             public string ItemDetails { get; set; }
-        }
+
+             public int OrderId { get; set; }
+    }
    
 }
